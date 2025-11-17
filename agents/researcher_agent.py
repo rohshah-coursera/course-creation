@@ -45,6 +45,7 @@ def researcher_agent(state: CourseState) -> CourseState:
             Learner Level: {learner_level}
             Course Duration: {course_duration}
             Number of Modules: {number_of_modules}
+            {custom_instructions}
             
             Please provide a comprehensive research analysis of what should be covered
             in this course. Format your response as JSON with the following structure:
@@ -63,13 +64,20 @@ def researcher_agent(state: CourseState) -> CourseState:
             }}""")
         ])
         
+        # Prepare custom instructions if provided
+        custom_prompt = state.get("custom_prompt", "").strip()
+        custom_instructions = ""
+        if custom_prompt:
+            custom_instructions = f"\n\nAdditional Instructions:\n{custom_prompt}\n\nPlease incorporate these instructions into your research analysis and course design."
+        
         # Invoke LLM
         chain = prompt | llm
         response = chain.invoke({
             "course_subject": state["course_subject"],
             "learner_level": state["learner_level"],
             "course_duration": state["course_duration"],
-            "number_of_modules": state["number_of_modules"]
+            "number_of_modules": state["number_of_modules"],
+            "custom_instructions": custom_instructions
         })
         
         # Parse response (in production, use proper JSON parsing)

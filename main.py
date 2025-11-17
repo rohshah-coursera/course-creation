@@ -18,6 +18,7 @@ def initialize_state(user_input: dict, thread_id: str = "default") -> CourseStat
         graded_quizzes_per_module=user_input.get("graded_quizzes_per_module", 1),
         practice_quizzes_per_module=user_input.get("practice_quizzes_per_module", 2),
         needs_lab_module=user_input.get("needs_lab_module", False),
+        custom_prompt=user_input.get("custom_prompt", ""),
         
         # Initialize empty structures
         research_findings=None,

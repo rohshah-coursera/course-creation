@@ -64,6 +64,8 @@ def xdp_agent(state: CourseState) -> CourseState:
                 "design_patterns": [
                     {{
                         "module_id": int,
+                        "module_name": "string",
+                        "module_description": "string",
                         "pattern_type": "string",
                         "components": [...]
                     }}
@@ -72,7 +74,14 @@ def xdp_agent(state: CourseState) -> CourseState:
                     "format": "XDP",
                     "version": "1.0"
                 }}
-            }}""")
+            }}
+            
+            IMPORTANT: For each module in the design_patterns array, include:
+            - module_id: The module identifier
+            - module_name: The name of the module from the module structure
+            - module_description: A comprehensive description of what the module covers, based on module objectives and content
+            - pattern_type: The instructional design pattern used
+            - components: The learning components for this module""")
         ])
         
         chain = prompt | llm
@@ -86,8 +95,56 @@ def xdp_agent(state: CourseState) -> CourseState:
         json_match = re.search(r'\{.*\}', content, re.DOTALL)
         if json_match:
             xdp_content = json.loads(json_match.group())
+            
+            # Ensure module names and descriptions are included in design_patterns
+            # Extract from module_structure if missing from LLM response
+            modules = state["module_structure"].get("modules", [])
+            if xdp_content.get("design_patterns"):
+                for pattern in xdp_content["design_patterns"]:
+                    module_id = pattern.get("module_id")
+                    if module_id:
+                        # Find corresponding module from structure
+                        module = next(
+                            (m for m in modules if m.get("module_id") == module_id),
+                            None
+                        )
+                        if module:
+                            # Add module_name if missing
+                            if "module_name" not in pattern:
+                                pattern["module_name"] = module.get("module_name", f"Module {module_id}")
+                            
+                            # Add module_description if missing
+                            if "module_description" not in pattern:
+                                # Create description from objectives
+                                objectives = module.get("module_objectives", [])
+                                if objectives:
+                                    pattern["module_description"] = " ".join(objectives)
+                                else:
+                                    pattern["module_description"] = f"Comprehensive coverage of {module.get('module_name', f'Module {module_id}')} concepts and applications"
         else:
-            # Fallback XDP structure
+            # Fallback XDP structure with module names and descriptions
+            modules = state["module_structure"].get("modules", [])
+            design_patterns = []
+            
+            for module in modules:
+                module_id = module.get("module_id", 0)
+                module_name = module.get("module_name", f"Module {module_id}")
+                objectives = module.get("module_objectives", [])
+                
+                # Create description from objectives
+                if objectives:
+                    module_description = " ".join(objectives)
+                else:
+                    module_description = f"Comprehensive coverage of {module_name} concepts and applications"
+                
+                design_patterns.append({
+                    "module_id": module_id,
+                    "module_name": module_name,
+                    "module_description": module_description,
+                    "pattern_type": "progressive_disclosure",
+                    "components": ["intro", "concept", "example", "practice"]
+                })
+            
             xdp_content = {
                 "xdp_specification": {
                     "version": "1.0",
@@ -104,14 +161,7 @@ def xdp_agent(state: CourseState) -> CourseState:
                         "required_elements": ["question", "options", "correct_answer", "explanation"]
                     }
                 },
-                "design_patterns": [
-                    {
-                        "module_id": i + 1,
-                        "pattern_type": "progressive_disclosure",
-                        "components": ["intro", "concept", "example", "practice"]
-                    }
-                    for i in range(state["number_of_modules"])
-                ],
+                "design_patterns": design_patterns,
                 "metadata": {
                     "format": "XDP",
                     "version": "1.0"

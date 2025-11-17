@@ -20,6 +20,7 @@ def collect_user_input(state: CourseState) -> CourseState:
         "graded_quizzes_per_module",
         "practice_quizzes_per_module",
         "needs_lab_module"
+        # Note: custom_prompt is optional, so not in required_fields
     ]
     
     missing_fields = [field for field in required_fields if field not in state or state.get(field) is None]

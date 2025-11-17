@@ -193,12 +193,24 @@ st.markdown("""
 
 def display_module_card(module, module_num):
     """Display a module card in Coursera-like style."""
+    # Use XDP module name if available, otherwise use regular module name
+    module_name = module.get('xdp_module_name') or module.get('module_name', 'Untitled')
+    
     st.markdown(f"""
     <div class="module-card">
-        <h3 style="color: #1a73e8; margin-bottom: 0.5rem;">Module {module_num}: {module.get('module_name', 'Untitled')}</h3>
+        <h3 style="color: #1a73e8; margin-bottom: 0.5rem;">Module {module_num}: {module_name}</h3>
         <p style="color: #666; margin-bottom: 1rem;">{module.get('duration_allocation', 'N/A')}</p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Display XDP module description if available
+    xdp_description = module.get('xdp_module_description')
+    if xdp_description:
+        st.markdown(f"""
+        <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; border-left: 3px solid #1a73e8;">
+            <p style="color: #5f6368; margin: 0; line-height: 1.6;"><strong>Module Overview:</strong> {xdp_description}</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Module objectives
     if module.get('module_objectives'):
@@ -431,6 +443,13 @@ def main():
                 help="Add a hands-on lab module for practical exercises"
             )
             
+            custom_prompt = st.text_area(
+                "Custom Instructions (Optional)",
+                placeholder="e.g., Focus on practical examples, include real-world case studies, emphasize hands-on learning...",
+                help="Provide any specific instructions or requirements for how the course should be structured or what it should emphasize",
+                height=100
+            )
+            
             submitted = st.form_submit_button("🚀 Generate Course", type="primary")
             
             if submitted:
@@ -444,7 +463,8 @@ def main():
                         "number_of_modules": number_of_modules,
                         "graded_quizzes_per_module": graded_quizzes,
                         "practice_quizzes_per_module": practice_quizzes,
-                        "needs_lab_module": needs_lab
+                        "needs_lab_module": needs_lab,
+                        "custom_prompt": custom_prompt.strip() if custom_prompt else ""
                     }
                     
                     # Generate new thread_id for fresh start
@@ -630,12 +650,45 @@ def main():
         course_content = saver.get_latest_result("course_content", thread_id)
         quizzes = saver.get_latest_result("quizzes", thread_id)
         final_course = saver.get_latest_result("final_course", thread_id)
+        xdp_content = saver.get_latest_result("xdp_content", thread_id)
         
         if not module_structure:
             st.info("No course data found. Please create a course first.")
         else:
-            # Extract data
-            modules_data = module_structure.get('data', {}).get('module_structure', {}).get('modules', [])
+            # Extract data - handle both possible structures defensively
+            # Structure 1: data.modules (current format)
+            # Structure 2: data.module_structure.modules (legacy format)
+            data = module_structure.get('data', {})
+            modules_data = data.get('modules', [])
+            if not modules_data:
+                # Try legacy structure
+                modules_data = data.get('module_structure', {}).get('modules', [])
+            
+            # Extract XDP design patterns for module names and descriptions
+            xdp_design_patterns = {}
+            if xdp_content:
+                xdp_data = xdp_content.get('data', {})
+                if isinstance(xdp_data, dict):
+                    design_patterns = xdp_data.get('design_patterns', [])
+                    for pattern in design_patterns:
+                        module_id = pattern.get('module_id')
+                        if module_id:
+                            xdp_design_patterns[module_id] = {
+                                'module_name': pattern.get('module_name', ''),
+                                'module_description': pattern.get('module_description', '')
+                            }
+            
+            # Enhance modules_data with XDP information if available
+            for module in modules_data:
+                module_id = module.get('module_id')
+                if module_id in xdp_design_patterns:
+                    xdp_info = xdp_design_patterns[module_id]
+                    # Use XDP module_name if available and different
+                    if xdp_info.get('module_name'):
+                        module['xdp_module_name'] = xdp_info['module_name']
+                    # Add XDP description
+                    if xdp_info.get('module_description'):
+                        module['xdp_module_description'] = xdp_info['module_description']
             
             # Handle course content - check multiple possible structures
             content_data = []
@@ -865,7 +918,12 @@ def main():
                     lessons_by_module[mod_id].append(lesson)
                 
                 for mod_id, lessons in sorted(lessons_by_module.items()):
-                    module_name = next((m.get('module_name', f'Module {mod_id}') for m in modules_data if m.get('module_id') == mod_id), f'Module {mod_id}')
+                    # Find module and use XDP name if available
+                    module = next((m for m in modules_data if m.get('module_id') == mod_id), None)
+                    if module:
+                        module_name = module.get('xdp_module_name') or module.get('module_name', f'Module {mod_id}')
+                    else:
+                        module_name = f'Module {mod_id}'
                     st.markdown(f"### 📦 {module_name} ({len(lessons)} lessons)")
                     
                     for lesson in lessons:

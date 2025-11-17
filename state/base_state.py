@@ -21,6 +21,7 @@ class CourseState(BaseState):
     graded_quizzes_per_module: int
     practice_quizzes_per_module: int
     needs_lab_module: bool
+    custom_prompt: str  # Optional custom instructions for course building
     
     # Agent Outputs
     research_findings: Optional[Dict[str, Any]]  # Key areas, topics, objectives
